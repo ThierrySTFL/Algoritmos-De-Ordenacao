@@ -260,35 +260,38 @@ void QuickSortCentro(int *v, int n) {
 
 // Quicksort (pivô fim)
 void QuickSortFim(int *v, int n) {
-    if (!v || n <= 1) {
-        return;
-    }
+    if (!v || n <= 1) return;
+
     int esq = 0;
     int dir = n - 1;
 
-    int i = esq;
-    int j = dir;
-    int pivo = v[dir];
+    while (esq < dir) {
+        int i = esq;
+        int j = dir;
+        int pivo = v[dir]; // pivô no fim
 
-    while (i <= j) {
-        while (CMP(v[i] < pivo)) {
-            i++;
-        }
-        while (CMP(v[j] > pivo)) {
-            j--;
-        }
-        if (i <= j) {
-            TROCA(v[i], v[j]);
-            i++;
-            j--;
-        }
-    }
+        while (i <= j) {
+            while (i < dir && CMP(v[i] < pivo)) i++;
+            while (j > esq && CMP(v[j] > pivo)) j--;
 
-    if (esq < j) {
-        QuickSortFim(v, j - esq + 1);
-    }
-    if (i < dir) {
-        QuickSortFim(v + i, dir - i + 1);
+            if (i <= j) {
+                TROCA(v[i], v[j]);
+                i++;
+                j--;
+            }
+        }
+
+        int tam_esq = j - esq + 1;
+        int tam_dir = dir - i + 1;
+
+        // Recursar só no menor lado
+        if (tam_esq < tam_dir) {
+            if (esq < j) QuickSortFim(v + esq, tam_esq);
+            esq = i; 
+        } else {
+            if (i < dir) QuickSortFim(v + i, tam_dir);
+            dir = j; 
+        }
     }
 }
 
