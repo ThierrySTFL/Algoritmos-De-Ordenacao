@@ -2,74 +2,46 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-
 #include "dados.h"
+#include "arquivo.h"
 #include "sort.h"
 
-Estatisticas g_estatisticas = {0, 0, 0.0};
+Estatisticas g_estatisticas = {0, 0, 0.0}; // inicializa variavel global
 
-static double diff_ms(clock_t inicio, clock_t fim) {
+static double ms_entre(clock_t inicio, clock_t fim) { // calcula ms entre dois clocks, nao achei jeito melhor
     return ((double)(fim - inicio) * 1000.0) / (double)CLOCKS_PER_SEC;
 }
 
-void gerar_entrada(int *destino, int n, TipoEntrada tipo) {
-    static int ja_inicializou_seed = 0;
-    if (!destino || n <= 0) {
-        return;
-    }
-
-    if (!ja_inicializou_seed) {
-        srand((unsigned)time(NULL));
-        ja_inicializou_seed = 1;
-    }
-
+const char *entrada_para_string(TipoEntrada tipo) { // converte tipo de entrada para string
     switch (tipo) {
-    case ENTRADA_CRESCENTE:
-        for (int i = 0; i < n; i++) {
-            destino[i] = i + 1;
-        }
-        break;
-    case ENTRADA_DECRESCENTE:
-        for (int i = 0; i < n; i++) {
-            destino[i] = n - i;
-        }
-        break;
-    case ENTRADA_ALEATORIA:
-    default:
-        for (int i = 0; i < n; i++) {
-            destino[i] = (rand() % n) + 1;
-        }
-        break;
+        case ENTRADA_ALEATORIA:   return "aleatoria";
+        case ENTRADA_CRESCENTE:   return "crescente";
+        case ENTRADA_DECRESCENTE: return "decrescente";
+        default:                  return "desconhecida";
     }
 }
 
-const char *entrada_para_string(TipoEntrada tipo) {
-    switch (tipo) {
-    case ENTRADA_ALEATORIA:
-        return "aleatoria";
-    case ENTRADA_CRESCENTE:
-        return "crescente";
-    case ENTRADA_DECRESCENTE:
-        return "decrescente";
-    default:
-        return "desconhecida";
-    }
-}
-
-Estatisticas medir_algoritmo(void (*sort_fn)(int *, int), const int *entrada, int n) {
+// mede um algoritmo de ordenação
+Estatisticas medir_algoritmo(void (*sort_fn)(int *, int),
+                            const int *entrada,
+                            int n) {
     Estatisticas resultado = {0, 0, 0.0};
-    if (!sort_fn || !entrada || n <= 0) {
+
+    if (sort_fn == NULL || entrada == NULL || n <= 0) {
         return resultado;
     }
 
-    int *copia = malloc((size_t)n * sizeof(int));
-    if (!copia) {
-        perror("falha ao alocar vetor de teste");
+    int *copia = (int *)malloc((size_t)n * sizeof(int));
+    if (copia == NULL) {
         return resultado;
     }
+
     memcpy(copia, entrada, (size_t)n * sizeof(int));
 
-    zerar_estatisticas();
+    // reseta contadores (todos golbais)
+    g_estatisticas.comparacoes = 0;
+    g_estatisticas.movimentacoes = 0;
+    g_estatisticas.tempo_ms = 0.0;
 
     clock_t inicio = clock();
     sort_fn(copia, n);
@@ -77,46 +49,88 @@ Estatisticas medir_algoritmo(void (*sort_fn)(int *, int), const int *entrada, in
 
     resultado.comparacoes = g_estatisticas.comparacoes;
     resultado.movimentacoes = g_estatisticas.movimentacoes;
-    resultado.tempo_ms = diff_ms(inicio, fim);
+    resultado.tempo_ms = ms_entre(inicio, fim);
 
     free(copia);
     return resultado;
 }
 
+// imprime o resultado de um algoritmo
 static void imprimir_resultado(const char *nome, TipoEntrada tipo, Estatisticas e) {
-    printf("%-24s %-11s comparacoes:%10lld movimentacoes:%10lld tempo:%10.3f ms\n",
-           nome, entrada_para_string(tipo), e.comparacoes, e.movimentacoes, e.tempo_ms);
+    printf("%-24s %-11s %15lld %15lld %12.3f\n",
+           nome,
+           entrada_para_string(tipo),
+           e.comparacoes,
+           e.movimentacoes,
+           e.tempo_ms);
 }
 
+// mede todos os algoritmos de ordenação
 void medir_todos_algoritmos(const int *entrada, int n, TipoEntrada tipo) {
-    if (!entrada || n <= 0) {
-        return;
-    }
+    printf("%-24s %-11s %15s %15s %12s\n",
+       "Algoritmo", "Entrada", "Comparacoes", "Movimentacoes", "Tempo(ms)");
+    printf("%-24s %-11s %15s %15s %12s\n",
+       "--------",  "-------", "-----------", "-------------", "--------");
+    if (entrada == NULL || n <= 0) return;
 
-    struct {
-        const char *nome;
+    typedef struct {
+        const char *nome; // para imprimir
+        const char *tag;  // para nome do arquivo (sem espaços)
         void (*fn)(int *, int);
-    } algoritmos[] = {
-        {"Bolha", Bolha},
-        {"Bolha (parada)", BolhaComCriterioDeParada},
-        {"Insercao direta", InsercaoDireta},
-        {"Insercao binaria", InsercaoBinaria},
-        {"Insercao ternaria", InsercaoTernaria},
-        {"ShellSort", ShellSort},
-        {"Selecao direta", SelecaoDireta},
-        {"HeapSort", HeapSort},
-        {"QuickSort", QuickSort},
-        {"QuickSort (centro)", QuickSortCentro},
-        {"QuickSort (fim)", QuickSortFim},
-        {"QuickSort (mediana)", QuickSortMediana},
-        {"MergeSort", MergeSort},
-        {"RadixSort", RadixSort},
-        {"BucketSort", BucketSort},
+    } Algoritmo;
+
+    Algoritmo algoritmos[] = {
+        {"Bolha",               "Bolha",               Bolha},
+        {"Bolha (parada)",      "Bolha_parada",        BolhaComCriterioDeParada},
+        {"Insercao direta",     "Insercao_direta",     InsercaoDireta},
+        {"Insercao binaria",    "Insercao_binaria",    InsercaoBinaria},
+        {"Insercao ternaria",   "Insercao_ternaria",   InsercaoTernaria},
+        {"ShellSort",           "ShellSort",           ShellSort},
+        {"Selecao direta",      "Selecao_direta",      SelecaoDireta},
+        {"HeapSort",            "HeapSort",            HeapSort},
+        {"QuickSort",           "QuickSort",           QuickSort},
+        {"QuickSort (centro)",  "QuickSort_centro",    QuickSortCentro},
+        {"QuickSort (fim)",     "QuickSort_fim",       QuickSortFim},
+        {"QuickSort (mediana)", "QuickSort_mediana",   QuickSortMediana},
+        {"MergeSort",           "MergeSort",           MergeSort},
+        {"RadixSort",           "RadixSort",           RadixSort},
+        {"BucketSort",          "BucketSort",          BucketSort},
     };
 
-    size_t total = sizeof(algoritmos) / sizeof(algoritmos[0]);
-    for (size_t i = 0; i < total; i++) {
-        Estatisticas e = medir_algoritmo(algoritmos[i].fn, entrada, n);
+    int total = sizeof(algoritmos) / sizeof(algoritmos[0]); // número de algoritmos
+
+    for (int i = 0; i < total; i++) { // para cada algoritmo
+        int *copia = (int *)malloc((size_t)n * sizeof(int));
+        if (copia == NULL) {
+            fprintf(stderr, "Falha ao alocar copia para %s\n", algoritmos[i].nome);
+            continue;
+        }
+        memcpy(copia, entrada, (size_t)n * sizeof(int));
+
+        // reseta contadores globais
+        g_estatisticas.comparacoes = 0;
+        g_estatisticas.movimentacoes = 0;
+        g_estatisticas.tempo_ms = 0.0;
+
+        clock_t inicio = clock();
+        algoritmos[i].fn(copia, n);
+        clock_t fim = clock();
+
+        Estatisticas e;
+        e.comparacoes = g_estatisticas.comparacoes;
+        e.movimentacoes = g_estatisticas.movimentacoes;
+        e.tempo_ms = ms_entre(inicio, fim);
+
+        // grava arquivo de saída
+        char nome_saida[128];
+        snprintf(nome_saida, sizeof(nome_saida), "saida_%s_%d.txt", algoritmos[i].tag, n); // nome formatado
+        if (escrever_saida(nome_saida, copia, (size_t)n, e) != 0) { // valida se gravou
+            fprintf(stderr, "Nao foi possivel gravar %s\n", nome_saida); 
+        }
+
+        // imprime no console
         imprimir_resultado(algoritmos[i].nome, tipo, e);
+
+        free(copia);
     }
 }
