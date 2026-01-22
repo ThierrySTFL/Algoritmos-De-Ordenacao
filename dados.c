@@ -21,37 +21,41 @@ const char *entrada_para_string(TipoEntrada tipo) { // converte tipo de entrada 
     }
 }
 
-// mede um algoritmo de ordenação
-Estatisticas medir_algoritmo(void (*sort_fn)(int *, int),
-                            const int *entrada,
-                            int n) {
-    Estatisticas resultado = {0, 0, 0.0};
+static Estatisticas medir_algoritmo(void (*sort_fn)(int *, int), const int *entrada, int n, int **saida_copia) {
+    Estatisticas resultado = {0, 0, 0.0}; // inicializa resultado
 
-    if (sort_fn == NULL || entrada == NULL || n <= 0) {
+    if (sort_fn == NULL || entrada == NULL || n <= 0) { 
+        if (saida_copia) *saida_copia = NULL; // se true retorna NULL na copia
         return resultado;
     }
 
-    int *copia = (int *)malloc((size_t)n * sizeof(int));
+    int *copia = (int *)malloc((size_t)n * sizeof(int));  // aloca e valida 
     if (copia == NULL) {
+        if (saida_copia) *saida_copia = NULL;
         return resultado;
     }
 
-    memcpy(copia, entrada, (size_t)n * sizeof(int));
+    memcpy(copia, entrada, (size_t)n * sizeof(int)); // copia entrada para o vetor que vai ser ordenado
 
-    // reseta contadores (todos golbais)
-    g_estatisticas.comparacoes = 0;
-    g_estatisticas.movimentacoes = 0;
+    // reseta contadores (todos globais)
+    zerar_estatisticas();
     g_estatisticas.tempo_ms = 0.0;
 
     clock_t inicio = clock();
     sort_fn(copia, n);
     clock_t fim = clock();
 
+    // preenche resultado nas variaveis locais
     resultado.comparacoes = g_estatisticas.comparacoes;
     resultado.movimentacoes = g_estatisticas.movimentacoes;
     resultado.tempo_ms = ms_entre(inicio, fim);
 
-    free(copia);
+    if (saida_copia) {
+        *saida_copia = copia;
+    } else {
+        free(copia);
+    }
+
     return resultado;
 }
 
@@ -100,26 +104,12 @@ void medir_todos_algoritmos(const int *entrada, int n, TipoEntrada tipo) {
     int total = sizeof(algoritmos) / sizeof(algoritmos[0]); // número de algoritmos
 
     for (int i = 0; i < total; i++) { // para cada algoritmo
-        int *copia = (int *)malloc((size_t)n * sizeof(int));
+        int *copia = NULL;
+        Estatisticas e = medir_algoritmo(algoritmos[i].fn, entrada, n, &copia);
         if (copia == NULL) {
             fprintf(stderr, "Falha ao alocar copia para %s\n", algoritmos[i].nome);
             continue;
         }
-        memcpy(copia, entrada, (size_t)n * sizeof(int));
-
-        // reseta contadores globais
-        g_estatisticas.comparacoes = 0;
-        g_estatisticas.movimentacoes = 0;
-        g_estatisticas.tempo_ms = 0.0;
-
-        clock_t inicio = clock();
-        algoritmos[i].fn(copia, n);
-        clock_t fim = clock();
-
-        Estatisticas e;
-        e.comparacoes = g_estatisticas.comparacoes;
-        e.movimentacoes = g_estatisticas.movimentacoes;
-        e.tempo_ms = ms_entre(inicio, fim);
 
         // grava arquivo de saída
         char nome_saida[128];

@@ -39,7 +39,6 @@ static inline void contar_movimentacao(void) {
 
 void gerar_entrada(int *destino, int n, TipoEntrada tipo); // gera uma entrada no vetor destino
 const char *entrada_para_string(TipoEntrada tipo); // converte tipo de entrada para string
-Estatisticas medir_algoritmo(void (*sort_fn)(int *, int), const int *entrada, int n); // mede um algoritmo de ordenação
 void medir_todos_algoritmos(const int *entrada, int n, TipoEntrada tipo); // mede todos os algoritmos de ordenação
 
 #endif
